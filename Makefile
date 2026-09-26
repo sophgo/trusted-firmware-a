@@ -183,7 +183,6 @@ DEFINES += -DBUILD_MESSAGE_VERSION='"$(VERSION)"'
 BL_COMMON_SOURCES	+=	common/bl_common.c			\
 				common/tf_log.c				\
 				common/${ARCH}/debug.S			\
-				drivers/console/multi_console.c		\
 				lib/${ARCH}/cache_helpers.S		\
 				lib/${ARCH}/misc_helpers.S		\
 				lib/extensions/pmuv3/${ARCH}/pmuv3.c	\
@@ -217,7 +216,10 @@ include common/backtrace/backtrace.mk
 ifeq (${BUILD_BASE},)
      BUILD_BASE		:=	./build
 endif
+# Allow SDK / out-of-tree builds to set BUILD_PLAT (e.g. per defconfig project dir).
+ifeq (${BUILD_PLAT},)
 BUILD_PLAT		:=	$(abspath ${BUILD_BASE})/${PLAT}/${BUILD_TYPE}
+endif
 
 SPDS			:=	$(sort $(filter-out none, $(patsubst services/spd/%,%,$(wildcard services/spd/*))))
 
@@ -534,6 +536,9 @@ endif
 
 ifeq (${NEED_BL2},yes)
 include bl2/bl2.mk
+ifeq (${PLAT},cv186x)
+include plat/cvitek/cv186x/bl2_sources_post.mk
+endif
 endif
 
 ifeq (${NEED_BL2U},yes)
@@ -541,6 +546,20 @@ include bl2u/bl2u.mk
 endif
 
 ifeq (${NEED_BL31},yes)
+
+# Add RTC_CORE_SRAM_BIN_PATH into cv_pm.c
+PM_SRAM_BIN_ALTERNATIVE := "${RTC_CORE_SRAM_BIN_PATH}" \
+                           "$(CURDIR)/blds/prebuilt/${CHIP_ARCH}/blds.bin" \
+                           "$(CURDIR)/blds/prebuilt/blds.bin" \
+                           "$(CURDIR)/blds/prebuilt/empty.bin"
+
+pm_sram_bin := $(shell \
+               for p in ${PM_SRAM_BIN_ALTERNATIVE}; do \
+                   [ -n "$$p" ] && [ -f "$$p" ] && echo $$p && exit; \
+               done)
+
+$(eval $(call add_define_val,PM_SRAM_BIN_PATH,'"${pm_sram_bin}"'))
+
 include bl31/bl31.mk
 endif
 
@@ -1077,6 +1096,13 @@ sp: $(DTBS) $(BUILD_PLAT)/sp_gen.mk $(SP_PKGS)
 	$(s)echo "Built SP Images successfully"
 	$(s)echo
 endif #(NEED_SP_PKG)
+
+ifeq (${STORAGE_TYPE},emmc)
+$(eval $(call add_define,BOOT_FROM_EMMC))
+endif
+ifeq (${STORAGE_TYPE},spinor)
+$(eval $(call add_define,BOOT_FROM_SPINOR))
+endif
 
 locate-checkpatch:
 ifndef CHECKPATCH

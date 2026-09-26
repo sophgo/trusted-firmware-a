@@ -7,6 +7,8 @@
 #ifndef IO_FIP_H
 #define IO_FIP_H
 
+#include <io_driver.h>
+
 struct io_dev_connector;
 
 int register_io_dev_fip(const struct io_dev_connector **dev_con);

@@ -127,7 +127,7 @@ void __init gicv3_driver_init(const gicv3_driver_data_t *plat_driver_data)
 
 	/* Check GIC version */
 #if !GIC_ENABLE_V4_EXTN
-	assert(gic_version == ARCH_REV_GICV3);
+	assert(gic_version == ARCH_REV_GICV4);
 #endif
 	/*
 	 * Find out whether the GIC supports the GICv2 compatibility mode.

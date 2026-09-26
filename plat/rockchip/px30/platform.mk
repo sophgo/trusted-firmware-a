@@ -44,7 +44,7 @@ BL31_SOURCES		+=	${RK_GIC_SOURCES}				\
 				drivers/arm/cci/cci.c				\
 				drivers/delay_timer/delay_timer.c		\
 				drivers/delay_timer/generic_delay_timer.c	\
-				drivers/ti/uart/aarch64/16550_console.S		\
+				drivers/cvitek/uart/uart_dw.c		\
 				lib/cpus/aarch64/cortex_a35.S			\
 				${RK_PLAT_COMMON}/aarch64/plat_helpers.S	\
 				${RK_PLAT_COMMON}/aarch64/platform_common.c	\

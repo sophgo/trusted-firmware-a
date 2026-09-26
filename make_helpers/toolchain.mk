@@ -554,11 +554,11 @@ ifndef toolchain-mk
                 $$(if $$(or $$($1-$2),$$($1-$2-optional)),,$\
                         $$(error no $$($1-name) $$(toolchain-tool-class-name-$2) configured))
 
-                $1-$2-id := $$(if $$($1-$2),$$(or $\
-                        $$(call toolchain-guess-tool,$$\
-                                $$(toolchain-tools-$2),$$($1-$2)),$\
-                        $$(call toolchain-warn-unrecognized,$1,$2)$\
-                                $$($1-$2-default-id)))
+                $1-$2-id-guess := $$(if $$($1-$2),$$(call toolchain-guess-tool,$$\
+                        $$(toolchain-tools-$2),$$($1-$2)))
+                $1-$2-id := $$(if $$($1-$2),$$(or $$($1-$2-id-guess),$$($1-$2-default-id)))
+                $$(if $$(and $$($1-$2),$$(strip $$($1-$2-id-guess))),,$\
+                        $$(if $$($1-$2),$$(call toolchain-warn-unrecognized,$1,$2)))
 
                 $1-$2-program := $$(call toolchain-tool-program,$\
                         $$($1-$2-id),$$($1-$2))

@@ -24,6 +24,8 @@
 
 #include "bl2_private.h"
 
+uint64_t bl31_loader_2nd_entry = 0;
+
 #ifdef __aarch64__
 #define NEXT_IMAGE	"BL31"
 #else
@@ -47,7 +49,6 @@ void __no_pauth bl2_main(u_register_t arg0, u_register_t arg1, u_register_t arg2
 	/* Enable early console if EARLY_CONSOLE flag is enabled */
 	plat_setup_early_console();
 #if RESET_TO_BL2
-
 	/* Perform early platform-specific setup */
 	bl2_el3_early_platform_setup(arg0, arg1, arg2, arg3);
 
@@ -101,7 +102,6 @@ void __no_pauth bl2_main(u_register_t arg0, u_register_t arg1, u_register_t arg2
 	bl2_plat_mboot_finish();
 
 	crypto_mod_finish();
-
 #if !BL2_RUNS_AT_EL3
 #ifndef __aarch64__
 	/*
@@ -125,12 +125,22 @@ void __no_pauth bl2_main(u_register_t arg0, u_register_t arg1, u_register_t arg2
 
 	console_flush();
 
+#if defined(DIRECT_BL31_FROM_BL2) && (DIRECT_BL31_FROM_BL2 == 1)
+	print_entry_point_info(next_bl_ep_info);
+	if (GET_EL(read_current_el()) == MODE_EL3) {
+		jump_to_monitor(next_bl_ep_info->pc, bl31_loader_2nd_entry);
+	} else {
+		ERROR("BL2: direct BL31 jump requires EL3, fallback to BL1 SMC path.\n");
+		smc(BL1_SMC_RUN_IMAGE, (unsigned long)next_bl_ep_info, 0, 0, 0, 0, 0, 0);
+	}
+#else
 	/*
 	 * Run next BL image via an SMC to BL1. Information on how to pass
 	 * control to the BL32 (if present) and BL33 software images will
 	 * be passed to next BL image as an argument.
 	 */
 	smc(BL1_SMC_RUN_IMAGE, (unsigned long)next_bl_ep_info, 0, 0, 0, 0, 0, 0);
+#endif
 #else /* if BL2_RUNS_AT_EL3 */
 
 	NOTICE("BL2: Booting " NEXT_IMAGE "\n");

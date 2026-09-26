@@ -154,6 +154,9 @@
 #endif /* BL2_IN_XIP_MEM */
 #endif /* SEPARATE_CODE_AND_RODATA */
 
+
+
+
 #if MEASURED_BOOT
 /*
  * Start critical data Ids from 2^32/2 reserving Ids from 0 to (2^32/2 - 1)

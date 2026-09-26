@@ -20,7 +20,7 @@
 /*
  * Context structure that saves the state of DSU PMU registers
  */
-cluster_pmu_state_t cluster_pmu_context[PLAT_ARM_CLUSTER_COUNT];
+cluster_pmu_state_t cluster_pmu_context[PLATFORM_CLUSTER_COUNT];
 
 /****************************************************************************
  * This function, save_dsu_pmu_state, is designed to save the

@@ -49,6 +49,12 @@
 #define FIQ_AARCH32			U(0xe)
 #define SERROR_AARCH32			U(0xf)
 
+#ifndef __ASSEMBLER__
+#if USE_COHERENT_MEM
+extern uintptr_t __COHERENT_RAM_START__;
+extern uintptr_t __COHERENT_RAM_END__;
+#endif
+#endif
 /*
  * Mapping to connect linker symbols from .ld.S with their counterparts
  * from .scat for the BL31 image
@@ -159,10 +165,10 @@ IMPORT_SYM(uintptr_t, __PER_CPU_UNIT_END__,	PER_CPU_UNIT_END)
  * __COHERENT_RAM_START__ and __COHERENT_RAM_END__ linker symbols refer to
  * page-aligned addresses.
  */
-#if USE_COHERENT_MEM
-IMPORT_SYM(uintptr_t, __COHERENT_RAM_START__,	BL_COHERENT_RAM_BASE);
-IMPORT_SYM(uintptr_t, __COHERENT_RAM_END__,	BL_COHERENT_RAM_END);
-#endif
+// #if USE_COHERENT_MEM
+// IMPORT_SYM(uintptr_t, __COHERENT_RAM_START__,	BL_COHERENT_RAM_BASE);
+// IMPORT_SYM(uintptr_t, __COHERENT_RAM_END__,	BL_COHERENT_RAM_END);
+// #endif
 
 /*******************************************************************************
  * Structure used for telling the next BL how much of a particular type of
@@ -181,6 +187,15 @@ struct crypto_heap_info {
 	void *addr;
 	size_t size;
 };
+
+typedef struct bl31_params {
+	param_header_t h;
+	image_info_t *bl31_image_info;
+	entry_point_info_t *bl32_ep_info;
+	image_info_t *bl32_image_info;
+	entry_point_info_t *bl33_ep_info;
+	image_info_t *bl33_image_info;
+} bl31_params_t;
 
 /*******************************************************************************
  * Function & variable prototypes

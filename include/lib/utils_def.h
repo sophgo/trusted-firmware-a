@@ -52,11 +52,13 @@
 	((~UINT64_C(0) >> (64U - 1U - (high))) ^ ((BIT_64(low) - 1U)))
 #endif
 
+#ifndef GENMASK
 #ifdef __aarch64__
 #define GENMASK				GENMASK_64
 #else
 #define GENMASK				GENMASK_32
-#endif
+#endif /* __aarch64__ */
+#endif /* GENMASK */
 
 /*
  * Similar to GENMASK_64 but uses a named register field to compute the mask.

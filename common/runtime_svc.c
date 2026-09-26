@@ -92,7 +92,6 @@ void __init runtime_svc_init(void)
 	int rc = 0;
 	uint8_t index, start_idx, end_idx;
 	rt_svc_desc_t *rt_svc_descs;
-
 	/* Assert the number of descriptors detected are less than maximum indices */
 	assert((RT_SVC_DESCS_END >= RT_SVC_DESCS_START) &&
 			(RT_SVC_DECS_NUM < MAX_RT_SVCS));
@@ -103,6 +102,7 @@ void __init runtime_svc_init(void)
 	}
 	/* Initialise internal variables to invalid state */
 	(void)memset(rt_svc_descs_indices, -1, sizeof(rt_svc_descs_indices));
+
 
 	rt_svc_descs = (rt_svc_desc_t *) RT_SVC_DESCS_START;
 	for (index = 0U; index < RT_SVC_DECS_NUM; index++) {

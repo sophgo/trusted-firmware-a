@@ -31,8 +31,8 @@ static const interrupt_prop_t arm_interrupt_props[] = {
 static unsigned int target_mask_array[PLATFORM_CORE_COUNT];
 
 static const gicv2_driver_data_t arm_gic_data = {
-	.gicd_base = PLAT_ARM_GICD_BASE,
-	.gicc_base = PLAT_ARM_GICC_BASE,
+	.gicd_base = 0x50001000,
+	.gicc_base = 0x50002000,
 	.interrupt_props = arm_interrupt_props,
 	.interrupt_props_num = ARRAY_SIZE(arm_interrupt_props),
 	.target_masks = target_mask_array,

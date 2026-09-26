@@ -107,15 +107,6 @@ void __no_pauth bl31_main(u_register_t arg0, u_register_t arg1, u_register_t arg
 {
 	unsigned int core_pos = plat_my_core_pos();
 
-	/* Enable early console if EARLY_CONSOLE flag is enabled */
-	plat_setup_early_console();
-
-	/* Perform early platform-specific setup */
-	bl31_early_platform_setup2(arg0, arg1, arg2, arg3);
-
-	/* Perform late platform-specific setup */
-	bl31_plat_arch_setup();
-
 #if FEATURE_DETECTION
 	/* Detect if features enabled during compilation are supported by PE. */
 	detect_arch_features(core_pos);
@@ -167,11 +158,9 @@ void __no_pauth bl31_main(u_register_t arg0, u_register_t arg1, u_register_t arg
 	INFO("BL31: Initialising Exception Handling Framework\n");
 	ehf_init();
 #endif
-
 	/* Initialize the runtime services e.g. psci. */
 	INFO("BL31: Initializing runtime services\n");
 	runtime_svc_init();
-
 	/*
 	 * All the cold boot actions on the primary cpu are done. We now need to
 	 * decide which is the next image and how to execute it.
@@ -188,16 +177,19 @@ void __no_pauth bl31_main(u_register_t arg0, u_register_t arg1, u_register_t arg
 	/*
 	 * If SPD had registered an init hook, invoke it.
 	 */
-	if (bl32_init != NULL) {
-		INFO("BL31: Initializing BL32\n");
+// #if defined(CV186X_SKIP_BL32)
+// #else
+// 	if (bl32_init != NULL) {
+// 		INFO("BL31: Initializing BL32\n");
 
-		console_flush();
-		int32_t rc = (*bl32_init)();
+// 		console_flush();
+// 		int32_t rc = (*bl32_init)();
 
-		if (rc == 0) {
-			WARN("BL31: BL32 initialization failed\n");
-		}
-	}
+// 		if (rc == 0) {
+// 			WARN("BL31: BL32 initialization failed\n");
+// 		}
+// 	}
+// #endif
 
 	/*
 	 * If RME is enabled and init hook is registered, initialize RMM
@@ -227,14 +219,11 @@ void __no_pauth bl31_main(u_register_t arg0, u_register_t arg1, u_register_t arg
 	 * from BL31
 	 */
 	bl31_plat_runtime_setup();
-
 #if ENABLE_RUNTIME_INSTRUMENTATION
 	console_flush();
 	PMF_CAPTURE_TIMESTAMP(bl_svc, BL31_EXIT, PMF_CACHE_MAINT);
 #endif
-
 	console_flush();
-	console_switch_state(CONSOLE_FLAG_RUNTIME);
 }
 
 void __no_pauth bl31_warmboot(void)

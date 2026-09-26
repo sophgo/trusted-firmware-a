@@ -11,12 +11,14 @@
 #ifndef STDINT__H
 #define STDINT__H
 
+#ifndef INT64_MAX
 #define INT64_MAX  LONG_MAX
 #define INT64_MIN  LONG_MIN
 #define UINT64_MAX ULONG_MAX
 
 #define INT64_C(x) x ## L
 #define UINT64_C(x) x ## UL
+#endif
 
 typedef long int64_t;
 typedef unsigned long uint64_t;

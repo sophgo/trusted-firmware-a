@@ -218,23 +218,17 @@ int __init psci_setup(const psci_lib_args_t *lib_args)
 
 	/* Do the Architectural initialization */
 	psci_arch_setup();
-
 	/* Query the topology map from the platform */
 	topology_tree = plat_get_power_domain_tree_desc();
-
 	/* Populate the power domain arrays using the platform topology map */
 	psci_plat_core_count = populate_power_domain_tree(topology_tree);
-
 	/* Update the CPU limits for each node in psci_non_cpu_pd_nodes */
 	psci_update_pwrlvl_limits();
-
 	/* Initialise the warmboot entrypoints */
 	populate_cpu_data();
-
 	/* Populate the mpidr field of cpu node for this CPU */
 	PER_CPU_BY_INDEX(psci_cpu_pd_nodes, cpu_idx)->mpidr =
 		read_mpidr() & MPIDR_AFFINITY_MASK;
-
 	psci_init_req_local_pwr_states();
 
 	/*
@@ -242,21 +236,17 @@ int __init psci_setup(const psci_lib_args_t *lib_args)
 	 * power domain levels for this CPU to run.
 	 */
 	psci_set_pwr_domains_to_run(cpu_idx, PLAT_MAX_PWR_LVL);
-
 	(void) plat_setup_psci_ops((uintptr_t)lib_args->mailbox_ep,
 				   &psci_plat_pm_ops);
 	assert(psci_plat_pm_ops != NULL);
-
 	/*
 	 * Flush `psci_plat_pm_ops` as it will be accessed by secondary CPUs
 	 * during warm boot, possibly before data cache is enabled.
 	 */
 	psci_flush_dcache_range((uintptr_t)&psci_plat_pm_ops,
 					sizeof(psci_plat_pm_ops));
-
 	/* Initialize the psci capability */
 	psci_caps = PSCI_GENERIC_CAP;
-
 	if (psci_plat_pm_ops->pwr_domain_off != NULL) {
 		psci_caps |=  define_psci_cap(PSCI_CPU_OFF);
 	}

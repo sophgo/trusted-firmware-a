@@ -61,6 +61,8 @@ extern console_t *console_list;
 /* offset macro assertions for console_t */
 #include <drivers/console_assertions.h>
 
+int console_init(uintptr_t base_addr,
+	unsigned int uart_clk, unsigned int baud_rate);
 /*
  * Add a console_t instance to the console list. This should only be called by
  * console drivers after they have initialized all fields in the console

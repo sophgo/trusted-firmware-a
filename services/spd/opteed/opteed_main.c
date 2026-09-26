@@ -849,7 +849,6 @@ static uintptr_t opteed_smc_handler(uint32_t smc_fid,
 /* Define an OPTEED runtime service descriptor for fast SMC calls */
 DECLARE_RT_SVC(
 	opteed_fast,
-
 	OEN_TOS_START,
 	OEN_TOS_END,
 	SMC_TYPE_FAST,
@@ -860,9 +859,18 @@ DECLARE_RT_SVC(
 /* Define an OPTEED runtime service descriptor for yielding SMC calls */
 DECLARE_RT_SVC(
 	opteed_std,
-
 	OEN_TOS_START,
 	OEN_TOS_END,
+	SMC_TYPE_YIELD,
+	NULL,
+	opteed_smc_handler
+);
+
+/* Add OEM funcid to OPTEED yielding SMC calls */
+DECLARE_RT_SVC(
+	oem_std,
+	OEN_OEM_START,
+	OEN_OEM_END,
 	SMC_TYPE_YIELD,
 	NULL,
 	opteed_smc_handler

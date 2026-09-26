@@ -23,15 +23,23 @@
 	 */
 
 func bl31_entrypoint
+	b bl31_entrypoint_real
+endfunc bl31_entrypoint
+
+	.org 0x40
+	.globl plat_resume_entry
+func plat_resume_entry
+	b bl31_warm_entrypoint
+endfunc plat_resume_entry
+
+func bl31_entrypoint_real
 	/* ---------------------------------------------------------------
 	 * Stash the previous bootloader arguments x0 - x3 for later use.
 	 * ---------------------------------------------------------------
 	 */
 	mov	x20, x0
 	mov	x21, x1
-	mov	x22, x2
-	mov	x23, x3
-
+	
 #if !RESET_TO_BL31
 	/* ---------------------------------------------------------------------
 	 * For !RESET_TO_BL31 systems, only the primary CPU ever reaches
@@ -50,6 +58,13 @@ func bl31_entrypoint
 		_init_c_runtime=1				\
 		_exception_vectors=runtime_exceptions		\
 		_pie_fixup_size=BL31_LIMIT - BL31_BASE
+	
+	/* ---------------------------------------------------------------------
+         * Relay the previous bootloader's arguments to the platform layer
+         * ---------------------------------------------------------------------
+         */
+        mov     x0, x20
+        mov     x1, x21
 #else
 
 	/* ---------------------------------------------------------------------
@@ -66,16 +81,25 @@ func bl31_entrypoint
 		_init_c_runtime=1				\
 		_exception_vectors=runtime_exceptions		\
 		_pie_fixup_size=BL31_LIMIT - BL31_BASE
+
+
+  /* ---------------------------------------------------------------------
+         * For RESET_TO_BL31 systems, BL31 is the first bootloader to run so
+         * there's no argument to relay from a previous bootloader. Zero the
+         * arguments passed to the platform layer to reflect that.
+         * ---------------------------------------------------------------------
+         */
+        mov     x0, 0
+        mov     x1, 0
 #endif /* RESET_TO_BL31 */
 
-	/* --------------------------------------------------------------------
-	 * Perform BL31 setup
-	 * --------------------------------------------------------------------
+	/* ---------------------------------------------
+	 * Perform platform specific early arch. setup
+	 * ---------------------------------------------
 	 */
-	mov	x0, x20
-	mov	x1, x21
-	mov	x2, x22
-	mov	x3, x23
+	bl	bl31_early_platform_setup
+	bl	bl31_plat_arch_setup
+
 
 	/* --------------------------------------------------------------------
 	 * Jump to main function
@@ -122,7 +146,7 @@ func bl31_entrypoint
 	bl	plat_per_cpu_dcache_clean
 #endif /* (PLATFORM_NODE_COUNT > 1) */
 	b	el3_exit
-endfunc bl31_entrypoint
+endfunc bl31_entrypoint_real
 
 	/* --------------------------------------------------------------------
 	 * This CPU has been physically powered up. It is either resuming from

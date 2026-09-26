@@ -36,6 +36,16 @@ static inline void mmio_clrsetbits_16(uintptr_t addr,
 	mmio_write_16(addr, (mmio_read_16(addr) & ~clear) | set);
 }
 
+static inline void mmio_clrbits_16(uintptr_t addr, uint16_t clear)
+{
+	mmio_write_16(addr, mmio_read_16(addr) & ~clear);
+}
+
+static inline void mmio_setbits_16(uintptr_t addr, uint16_t set)
+{
+	mmio_write_16(addr, mmio_read_16(addr) | set);
+}
+
 static inline void mmio_write_32(uintptr_t addr, uint32_t value)
 {
 	*(volatile uint32_t*)addr = value;

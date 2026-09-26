@@ -18,8 +18,10 @@
 
 #define _ATEXIT_MAX 1
 
+#ifndef isspace
 #define isspace(x)    (((x) == ' ') || ((x) == '\r') || ((x) == '\n') || \
 			((x) == '\t') || ((x) == '\b'))
+#endif
 
 extern void abort(void);
 extern int atexit(void (*func)(void));

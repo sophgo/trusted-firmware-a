@@ -75,7 +75,7 @@ endfunc plat_crash_console_putc
 	 */
 func plat_crash_console_flush
 	mov_imm	x0, PLAT_ARM_CRASH_UART_BASE
-	b	console_pl011_core_flush
+	b	console_core_flush
 endfunc plat_crash_console_flush
 
 	/* ---------------------------------------------------------------------

@@ -414,10 +414,12 @@ $(eval BL_DEFINES := IMAGE_$(4) $($(4)_DEFINES))
 $(eval BL_INCLUDE_DIRS := $($(4)_INCLUDE_DIRS))
 $(eval BL_CPPFLAGS := $($(4)_CPPFLAGS) $(addprefix -D,$(BL_DEFINES)) $(addprefix -I,$(BL_INCLUDE_DIRS)))
 $(eval BL_CFLAGS := $($(4)_CFLAGS))
+$(eval BL_OBJ := $(notdir $(OBJ)))
+$(eval BL_TF_CFLAGS_REMOVE := $($(4)_TF_CFLAGS_REMOVE_$(BL_OBJ)))
 
 $(OBJ): $(2) $(filter-out %.d,$(MAKEFILE_LIST)) | $$$$(@D)/ $(BL_INCLUDE_DIRS:%=%/)
 	$$(s)echo "  CC      $$<"
-	$$(q)$($(ARCH)-cc) $$(LTO_CFLAGS) $$(TF_CFLAGS) $(BL_CPPFLAGS) $(BL_CFLAGS) $(call MAKE_DEP,$(DEP),$(OBJ)) -c $$< -o $$@
+	$$(q)$($(ARCH)-cc) $$(LTO_CFLAGS) $$(filter-out $(BL_TF_CFLAGS_REMOVE),$$(TF_CFLAGS)) $(BL_CPPFLAGS) $(BL_CFLAGS) $(call MAKE_DEP,$(DEP),$(OBJ)) -c $$< -o $$@
 
 -include $(DEP)
 
@@ -543,7 +545,7 @@ define MAKE_LIB
 $(eval $(call MAKE_LIB_OBJS,$(BUILD_DIR),$(SOURCES),$(1),$(BL)))
 
 libraries: ${LIB_DIR}/lib$(1).a
-ifeq ($($(ARCH)-ld-id),arm-link)
+ifneq (,$(filter arm-link,$($(ARCH)-ld-id)))
 LDPATHS = --userlibpath=${LIB_DIR}
 LDLIBS += --library=$(1)
 else
@@ -591,6 +593,9 @@ define MAKE_BL
         $(eval BL_LIBS    := $($(BL)_LIBS))
 
         $(eval DEFAULT_LINKER_SCRIPT_SOURCE := $($(BL)_DEFAULT_LINKER_SCRIPT_SOURCE))
+ifeq ($(strip $(DEFAULT_LINKER_SCRIPT_SOURCE)),)
+        $(eval DEFAULT_LINKER_SCRIPT_SOURCE := ${1}/${1}.ld.S)
+endif
         $(eval DEFAULT_LINKER_SCRIPT := $(call linker_script_path,$(DEFAULT_LINKER_SCRIPT_SOURCE)))
 
         $(eval LINKER_SCRIPT_SOURCES := $($(BL)_LINKER_SCRIPT_SOURCES))
@@ -611,11 +616,13 @@ endif
 
 # MODULE_OBJS can be assigned by vendors with different compiled
 # object file path, and prebuilt object file path.
-$(eval OBJS += $(MODULE_OBJS))
+# Also allow stage-specific prebuilt objects through <BL>_MODULE_OBJS
+# (e.g. BL2_MODULE_OBJS, BL31_MODULE_OBJS).
+$(eval OBJS += $($(BL)_MODULE_OBJS) $(MODULE_OBJS))
 
 $(ELF): $(OBJS) $(DEFAULT_LINKER_SCRIPT) $(LINKER_SCRIPTS) | $$$$(@D)/ libraries $(BL_LIBS)
 	$$(s)echo "  LD      $$@"
-ifeq ($($(ARCH)-ld-id),arm-link)
+ifneq (,$(filter arm-link,$($(ARCH)-ld-id)))
 	$$(q)$($(ARCH)-ld) -o $$@ $$(TF_LDFLAGS) $$(LDFLAGS) $(BL_LDFLAGS) --entry=${1}_entrypoint \
 		--predefine=$(call escape-shell,-D__LINKER__=$(__LINKER__)) \
 		--predefine=$(call escape-shell,-DTF_CFLAGS=$(TF_CFLAGS)) \

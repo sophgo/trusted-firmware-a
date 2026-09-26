@@ -96,6 +96,7 @@ static inline bool is_rotpk_flags_valid(unsigned int flags)
 /*******************************************************************************
  * Mandatory common functions
  ******************************************************************************/
+void plat_setup_early_console(void);
 unsigned int plat_get_syscnt_freq2(void);
 
 int plat_get_image_source(unsigned int image_id,
@@ -174,7 +175,6 @@ void plat_report_prefetch_abort(unsigned int fault_address);
 void plat_report_data_abort(unsigned int fault_address);
 int plat_crash_console_init(void);
 int plat_crash_console_putc(int c);
-void plat_crash_console_flush(void);
 void plat_error_handler(int err) __dead2;
 void plat_panic_handler(void) __dead2;
 const char *plat_log_get_prefix(unsigned int log_level);
@@ -210,13 +210,7 @@ static inline int plat_mboot_measure_key(const void *pk_oid __unused,
 }
 #endif /* MEASURED_BOOT */
 
-#if EARLY_CONSOLE
-void plat_setup_early_console(void);
-#else
-static inline void plat_setup_early_console(void)
-{
-}
-#endif /* EARLY_CONSOLE */
+
 
 /*******************************************************************************
  * Mandatory BL1 functions
@@ -368,6 +362,9 @@ int bl2u_plat_handle_scp_bl2u(void);
 /*******************************************************************************
  * Mandatory BL31 functions
  ******************************************************************************/
+void bl31_early_platform_setup(struct bl31_params *from_bl2,
+	void *plat_params_from_bl2);
+
 void bl31_early_platform_setup2(u_register_t arg0, u_register_t arg1,
 		u_register_t arg2, u_register_t arg3);
 void bl31_plat_arch_setup(void);

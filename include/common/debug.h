@@ -71,6 +71,7 @@
 #if LOG_LEVEL >= LOG_LEVEL_NOTICE
 # define NOTICE(...)	tf_log(LOG_MARKER_NOTICE __VA_ARGS__)
 #else
+111
 # define NOTICE(...)	no_tf_log(LOG_MARKER_NOTICE __VA_ARGS__)
 #endif
 
