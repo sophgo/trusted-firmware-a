@@ -53,3 +53,5 @@ node_modules/
 env/
 .venv/
 venv/
+plat/cvitek/cv84x6/asic/include/cvi_board_memmap.h
+plat/cvitek/cv186x/asic/include/cvi_board_memmap.h

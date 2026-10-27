@@ -274,6 +274,7 @@ extern struct _time_records *time_records;
 #define SEC_FAB_FIREWALL        (SEC_SUBSYS_BASE + 0x00040000)
 #define SEC_DDR_FIREWALL        (SEC_SUBSYS_BASE + 0x00050000)
 #define CRYPTO_SIDE_OTP_BASE    (SEC_SUBSYS_BASE + 0x00060000)
+#define SEC_SYS_CTL_FOR_TOP     (SEC_SUBSYS_BASE + 0x00070000)
 
 #define SEC_SYS_BASE (SEC_SUBSYS_BASE + 0x000B0000)  // to check
 #define SEC_EFUSE_BASE (SEC_SUBSYS_BASE + 0x000C0000) // to check

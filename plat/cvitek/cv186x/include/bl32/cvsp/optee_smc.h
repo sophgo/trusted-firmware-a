@@ -594,6 +594,7 @@
 #define OPTEE_SMC_FUNID_CV_SPACC_DES 0x11
 #define OPTEE_SMC_FUNID_CV_SPACC_TDES 0x12
 #define OPTEE_SMC_FUNID_CV_SPACC_SM3 0x13
+#define OPTEE_SMC_FUNID_CV_PWM_CTRL 0x14
 
 #define OPTEE_SMC_CALL_CV_DEBUG                                                \
 	OPTEE_SMC_CALL_VAL(OPTEE_SMC_32, OPTEE_SMC_STD_CALL,                   \
@@ -672,4 +673,8 @@
 #define OPTEE_SMC_CALL_CV_SM3                                                  \
 	OPTEE_SMC_CALL_VAL(OPTEE_SMC_32, OPTEE_SMC_STD_CALL,                   \
 			   OPTEE_SMC_OWNER_OEM, OPTEE_SMC_FUNID_CV_SPACC_SM3)
+
+#define OPTEE_SMC_CALL_CV_PWM_CTRL                                             \
+	OPTEE_SMC_CALL_VAL(OPTEE_SMC_32, OPTEE_SMC_STD_CALL,                   \
+			   OPTEE_SMC_OWNER_OEM, OPTEE_SMC_FUNID_CV_PWM_CTRL)
 #endif /* OPTEE_SMC_H */

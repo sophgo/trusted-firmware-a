@@ -531,6 +531,13 @@ class FIP:
             fw_files = ["lpddr4_train_itim.bin", "lpddr4_train_dtim.bin"]
         elif ddr_type == 'lp5':
             fw_files = ["lpddr5_train_itim.bin", "lpddr5_train_dtim.bin"]
+        elif ddr_type == 'auto':
+            # embed both LPDDR4 and LPDDR5 PHY firmware so a single fip.bin
+            # supports either DRAM type (selected at runtime by get_board_info)
+            fw_files = [
+                "lpddr4_train_itim.bin", "lpddr4_train_dtim.bin",
+                "lpddr5_train_itim.bin", "lpddr5_train_dtim.bin",
+            ]
         for fname in fw_files:
             fpath = os.path.join(fw_dir, fname)
             key = fname.replace(".bin", "").upper()
