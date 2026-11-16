@@ -27,7 +27,7 @@ void bmsp_update_sync_sel1_intr_stats(uint32_t type, uint64_t elr_el3)
 {
 	uint32_t linear_id = plat_my_core_pos();
 
-	NOTICE("bmsp_update_sync_sel1_intr_stats\n");
+	INFO("bmsp_update_sync_sel1_intr_stats\n");
 
 	bmsp_stats[linear_id].sync_sel1_intr_count++;
 	if (type == BMSP_HANDLE_SEL1_INTR_AND_RETURN)
@@ -54,7 +54,7 @@ int32_t bmsp_handle_preemption(void)
 {
 	uint32_t linear_id = plat_my_core_pos();
 
-	NOTICE("bmsp_handle_preemption\n");
+	INFO("bmsp_handle_preemption\n");
 
 	bmsp_stats[linear_id].preempt_intr_count++;
 #if LOG_LEVEL >= LOG_LEVEL_VERBOSE
@@ -89,7 +89,7 @@ int32_t bmsp_common_int_handler(void)
 	 */
 	id = plat_ic_get_pending_interrupt_id();
 
-	NOTICE("BMSP: intrid=0x%x\n", id);
+	INFO("BMSP: intrid=0x%x\n", id);
 
 	/* BMSP can only handle the secure physical timer interrupt */
 	if (id != BMSP_IRQ_SEC_PHY_TIMER)

@@ -113,7 +113,7 @@ enum ddr_mode_enum {
 enum board_ddr_type_e {
 	BOARD_LPDDR4X,
 	BOARD_LPDDR5,
-	BOARD_LPDDR5x
+	BOARD_LPDDR5X
 };
 
 enum rank_num_e {

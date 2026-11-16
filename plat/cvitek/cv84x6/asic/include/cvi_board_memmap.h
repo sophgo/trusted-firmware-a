@@ -1,5 +1,5 @@
-#ifndef __BOARD_MMAP__ec6855e8__
-#define __BOARD_MMAP__ec6855e8__
+#ifndef __BOARD_MMAP__93057d06__
+#define __BOARD_MMAP__93057d06__
 
 #define CONFIG_SYS_TEXT_BASE 0x1000100000  /* offset 63489.0MiB */
 #define CVIMMAP_ATF_SIZE 0x80000  /* 512.0KiB */
@@ -31,4 +31,4 @@
 #define CVIMMAP_OPENSBI_SIZE 0x80000  /* 512.0KiB */
 #define CVIMMAP_UIMAG_ADDR 0x1004000000  /* offset 63552.0MiB */
 
-#endif /* __BOARD_MMAP__ec6855e8__ */
+#endif /* __BOARD_MMAP__93057d06__ */

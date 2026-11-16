@@ -130,6 +130,12 @@ typedef struct optee_context {
 	uint64_t mpidr;
 	uint64_t c_rt_ctx;
 	cpu_context_t cpu_ctx;
+	/* Preemption/resume support for yielding SMCs */
+	cpu_context_t sp_ctx;		/* saved preempted secure context */
+	uint64_t saved_fid;		/* FID of the in-flight yielding SMC (debug) */
+	uint64_t saved_args[4];		/* a1-a4 of the in-flight yielding SMC (debug) */
+	uint32_t yield_smc_active;	/* a yielding SMC is in flight */
+	uint32_t preempted;		/* the in-flight yield SMC was preempted */
 } optee_context_t;
 
 /* OPTEED power management handlers */

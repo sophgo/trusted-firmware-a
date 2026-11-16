@@ -18,6 +18,7 @@
 #include <errno.h>
 #include <inttypes.h>
 #include <stddef.h>
+#include <string.h>
 
 #include <arch_helpers.h>
 #include <bl31/bl31.h>
@@ -40,6 +41,9 @@
 
 #include "opteed_private.h"
 #include "teesmc_opteed.h"
+
+#define OPTEE_SMC_CALL_CV_SP_ABORT	0x03000015U
+#define OPTEE_SMC_CALL_CV_SP_RESUME	0x03000016U
 
 #if OPTEE_ALLOW_SMC_LOAD
 static struct transfer_list_header __maybe_unused *bl31_tl;
@@ -623,6 +627,66 @@ static uintptr_t opteed_smc_handler(uint32_t smc_fid,
 	 */
 
 	if (is_caller_non_secure(flags)) {
+		/*
+		 * A preempted yielding SMC is resumed with an explicit RESUME
+		 * call and discarded with ABORT, mirroring the TSP
+		 * dispatcher.  Both are only meaningful while a preempted
+		 * call is pending on this CPU.
+		 */
+		if (smc_fid == OPTEE_SMC_CALL_CV_SP_RESUME) {
+			if (optee_ctx->preempted == 0U) {
+				VERBOSE("OPTEED: RESUME with no preempted SMC\n");
+				SMC_RET1(handle, SMC_UNK);
+			}
+
+			INFO("OPTEED: resuming preempted yielding SMC 0x%x\n",
+			     (uint32_t)optee_ctx->saved_fid);
+
+			assert(handle == cm_get_context(NON_SECURE));
+			cm_el1_sysregs_context_save(NON_SECURE);
+
+			/*
+			 * Restore the preempted secure context and resume it.
+			 * yield_smc_active stays set until the call completes
+			 * through TEESMC_OPTEED_RETURN_CALL_DONE.
+			 */
+			memcpy(&optee_ctx->cpu_ctx, &optee_ctx->sp_ctx,
+			       sizeof(cpu_context_t));
+			optee_ctx->preempted = 0U;
+
+			cm_el1_sysregs_context_restore(SECURE);
+			cm_set_next_eret_context(SECURE);
+			SMC_RET0(&optee_ctx->cpu_ctx);
+		}
+
+		if (smc_fid == OPTEE_SMC_CALL_CV_SP_ABORT) {
+			if (optee_ctx->preempted == 0U) {
+				VERBOSE("OPTEED: ABORT with no preempted SMC\n");
+				SMC_RET1(handle, SMC_UNK);
+			}
+
+			/* Discard the pending secure call.  Note: a partially
+			 * executed OTP write may already have programmed bits. */
+			INFO("OPTEED: aborting preempted yielding SMC 0x%x\n",
+			     (uint32_t)optee_ctx->saved_fid);
+			optee_ctx->preempted = 0U;
+			optee_ctx->yield_smc_active = 0U;
+			memset(&optee_ctx->sp_ctx, 0, sizeof(optee_ctx->sp_ctx));
+			SMC_RET1(handle, 0);
+		}
+
+		if (optee_ctx->preempted != 0U) {
+			/*
+			 * Only an explicit RESUME or ABORT may be issued
+			 * while a preempted yielding SMC is pending on this
+			 * CPU. Re-issuing the original SMC no longer resumes
+			 * it.
+			 */
+			VERBOSE("OPTEED: rejecting SMC 0x%x while yielding SMC 0x%x"
+				" is preempted\n", smc_fid,
+				(uint32_t)optee_ctx->saved_fid);
+			SMC_RET1(handle, SMC_UNK);
+		}
 #if OPTEE_ALLOW_SMC_LOAD
 		if (opteed_allow_load && smc_fid == NSSMC_OPTEED_CALL_UID) {
 			/* Provide the UUID of the image loading service. */
@@ -697,6 +761,17 @@ static uintptr_t opteed_smc_handler(uint32_t smc_fid,
 			cm_set_elr_el3(SECURE, (uint64_t)
 					&optee_vector_table->fast_smc_entry);
 		} else {
+			/*
+			 * Record the in-flight call for logging/debugging.
+			 * Resumption is driven by an explicit RESUME call,
+			 * these values are not used to match it.
+			 */
+			optee_ctx->yield_smc_active = 1U;
+			optee_ctx->saved_fid = (uint64_t)smc_fid;
+			optee_ctx->saved_args[0] = x1;
+			optee_ctx->saved_args[1] = x2;
+			optee_ctx->saved_args[2] = x3;
+			optee_ctx->saved_args[3] = x4;
 			cm_set_elr_el3(SECURE, (uint64_t)
 					&optee_vector_table->yield_smc_entry);
 		}
@@ -809,6 +884,8 @@ static uintptr_t opteed_smc_handler(uint32_t smc_fid,
 		 * into the non-secure context, save the secure state
 		 * and return to the non-secure state.
 		 */
+		optee_ctx->yield_smc_active = 0U;
+		optee_ctx->preempted = 0U;
 		assert(handle == cm_get_context(SECURE));
 		cm_el1_sysregs_context_save(SECURE);
 
@@ -830,6 +907,27 @@ static uintptr_t opteed_smc_handler(uint32_t smc_fid,
 		/* Get a reference to the non-secure context */
 		ns_cpu_context = cm_get_context(NON_SECURE);
 		assert(ns_cpu_context);
+
+		if (optee_ctx->yield_smc_active != 0U) {
+			/*
+			 * A yielding SMC was preempted by an S-EL1 FIQ.
+			 * Save the secure context (including the interrupted
+			 * EL1 state and the return point just after the FIQ
+			 * vector's SMC) so the call can be resumed by an
+			 * explicit RESUME from the normal world, and report
+			 * SMC_PREEMPTED so the interrupt can be handled in
+			 * the normal world first.
+			 */
+			assert(handle == cm_get_context(SECURE));
+			cm_el1_sysregs_context_save(SECURE);
+			memcpy(&optee_ctx->sp_ctx, &optee_ctx->cpu_ctx,
+			       sizeof(cpu_context_t));
+			optee_ctx->preempted = 1U;
+
+			cm_el1_sysregs_context_restore(NON_SECURE);
+			cm_set_next_eret_context(NON_SECURE);
+			SMC_RET1(ns_cpu_context, SMC_PREEMPTED);
+		}
 
 		/*
 		 * Restore non-secure state. There is no need to save the

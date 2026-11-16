@@ -5,7 +5,7 @@ cscope.*
 *~
 .project
 .cproject
-
+release_atf.sh
 # Ignore build directory
 build/
 

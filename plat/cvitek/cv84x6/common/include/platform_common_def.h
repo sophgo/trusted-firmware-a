@@ -271,9 +271,13 @@ extern struct _time_records *time_records;
  */
 #define SEC_SUBSYS_BASE         0x34000000
 #define SEC_CRYPTODMA_BASE      (SEC_SUBSYS_BASE)
+#define REG_TRNG_BASE           (SEC_SUBSYS_BASE + 0x00020000)
 #define SEC_FAB_FIREWALL        (SEC_SUBSYS_BASE + 0x00040000)
 #define SEC_DDR_FIREWALL        (SEC_SUBSYS_BASE + 0x00050000)
 #define CRYPTO_SIDE_OTP_BASE    (SEC_SUBSYS_BASE + 0x00060000)
+#define SEC_SYS_CTL_FOR_TOP     (SEC_SUBSYS_BASE + 0x00070000)
+#define REG_OTP_BASE            (CRYPTO_SIDE_OTP_BASE)
+
 
 #define SEC_SYS_BASE (SEC_SUBSYS_BASE + 0x000B0000)  // to check
 #define SEC_EFUSE_BASE (SEC_SUBSYS_BASE + 0x000C0000) // to check
@@ -867,16 +871,6 @@ INTR_PROP_DESC(BM_IRQ_SEC_SGI_0, GIC_HIGHEST_SEC_PRIORITY, grp, \
 #define BIT_SD1_PWR_EN_POLARITY BIT(17)
 
 #define PCIE_BOOT_REG 0x281000D0
-
-/*
- * TRNG register
- */
-#define REG_TRNG_BASE		0x34020000
-
-/*
- * OTP register
- */
-#define REG_OTP_BASE		0x34060000
 
 /*
  * Security top register

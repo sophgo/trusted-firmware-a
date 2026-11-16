@@ -165,6 +165,8 @@ h1c0	SS_MODE_REG_00
 #define PCIE_TRAP_BAR4_SET_SHIFT 29
 #define PCIE_TRAP_BAR4_SET_MASK (0x3 << PCIE_TRAP_BAR4_SET_SHIFT)
 
+#define PCIE_HOLD_ARESETN 0x281003a0
+
 #define PCIE_DEFAULT_DEVICE_ID 0x16941f1c
 
 enum pcie_ctrl_id {
@@ -194,6 +196,7 @@ enum {
 	SKIP_PCIEI = (1 << 1),
 	PCIE_EP_LINKED = (1 << 2),
 	SOC_EP = (1 << 3),
+	DDR_INIT_DONE = (0x3 << 16),
 };
 
 enum pcie_link_capable {

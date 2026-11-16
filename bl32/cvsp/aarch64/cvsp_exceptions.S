@@ -65,9 +65,15 @@
 	 * This interrupt was not targeted to S-EL1 so send it to
 	 * the monitor and wait for execution to resume.
 	 */
-	mov x3, x0
-	ldr	x0, =TEESMC_OPTEED_RETURN_CALL_DONE
-	ldr	x1, =OPTEE_SMC_RETURN_RPC_FOREIGN_INTR
+	/*
+	 * This interrupt was not targeted to S-EL1. Report FIQ_DONE to the
+	 * monitor. If a yielding SMC was in flight the monitor saves this
+	 * context and returns SMC_PREEMPTED to the normal world. When the
+	 * preempted SMC is re-issued, execution resumes at
+	 * interrupt_exit_\label below and returns to the interrupted
+	 * handler.
+	 */
+	ldr	x0, =TEESMC_OPTEED_RETURN_FIQ_DONE
 	smc	#0
 interrupt_exit_\label:
 	restore_caller_regs_and_lr

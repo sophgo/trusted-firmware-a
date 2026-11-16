@@ -370,11 +370,11 @@ func	bmsp_sel1_intr_entry
 	b	bmsp_sel1_intr_return
 bmsp_sel1_intr_check_preemption:
 	/* Check if the S-EL1 interrupt has been preempted */
-	ldr	x1, =OPTEE_SMC_RETURN_RPC_FOREIGN_INTR
+	mov_imm	x1, BMSP_PREEMPTED
 	cmp	x0, x1
 	b.ne	bmsp_sel1_int_entry_panic
 bmsp_sel1_intr_return:
-	ldr	x0, =TEESMC_OPTEED_RETURN_CALL_DONE
+	ldr	x0, =TEESMC_OPTEED_RETURN_FIQ_DONE
 	restore_eret_context x2 x3
 	smc	#0
 

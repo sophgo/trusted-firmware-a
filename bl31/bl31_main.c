@@ -177,19 +177,19 @@ void __no_pauth bl31_main(u_register_t arg0, u_register_t arg1, u_register_t arg
 	/*
 	 * If SPD had registered an init hook, invoke it.
 	 */
-// #if defined(CV186X_SKIP_BL32)
-// #else
-// 	if (bl32_init != NULL) {
-// 		INFO("BL31: Initializing BL32\n");
+#if defined(CV186X_SKIP_BL32)
+#else
+	if (bl32_init != NULL) {
+		INFO("BL31: Initializing BL32\n");
 
-// 		console_flush();
-// 		int32_t rc = (*bl32_init)();
+		console_flush();
+		int32_t rc = (*bl32_init)();
 
-// 		if (rc == 0) {
-// 			WARN("BL31: BL32 initialization failed\n");
-// 		}
-// 	}
-// #endif
+		if (rc == 0) {
+			WARN("BL31: BL32 initialization failed\n");
+		}
+	}
+#endif
 
 	/*
 	 * If RME is enabled and init hook is registered, initialize RMM

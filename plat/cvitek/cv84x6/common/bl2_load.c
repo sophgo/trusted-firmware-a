@@ -32,18 +32,43 @@
 #include <aks_ddrphy_fw.h>
 #endif
 
+#include <pcie.h>
+
 #define ADC_BASE 0x270E0000
 #define ADC_CTL 0x04
 #define ADC_BUSY_STATUS 0x8
 #define ADC_CYC_SET 0xc
+#define ADC_INTR_EN 0x20
+#define ADC_RESULT2 0x18
 #define ADC_RESULT3 0x1c
+/* SARADC CTRL bit4..bit7 are per-channel enable bits (ch1=bit4..ch4=bit7).
+ * The legacy code wrote 0x80 (=bit7=ch3) for BOTH adc2 and adc3, so channel 2
+ * was never selected and ADC_RESULT2 stayed at its reset value 0 even though
+ * the strap divider on GPIO55 was e.g. 600 mV. ch2 needs bit6 (0x40).
+ * CYC_SET[15:12] is the sample clock cycle; the reference cvitek-adc.c uses
+ * 0xf (~840 ns). The second CYC_SET write here used to clobber it to 0x2,
+ * which is far too short for a valid conversion -> removed.
+ */
+#define ADC_CH1_EN	(1 << 4)
+#define ADC_CH2_EN	(1 << 6)
+#define ADC_CH3_EN	(1 << 7)
+#define ADC_CYC_MASK	(0xf << 12)
+#define ADC_CYC_840NS	(0xf << 12)
 
+/* ADC3 (GPIO56) sampled value / voltage (mV) -- dram type + rank strap */
 uint32_t adc_val_ddr_array[7];
 uint32_t adc_val_ddr_array_sum = 0;
 uint32_t adc_val_ddr_array_min = 4096;
 uint32_t adc_val_ddr_array_max = 0;
 uint32_t adc_val_ddr;
 uint32_t vol_val_ddr;
+/* ADC2 (GPIO55) sampled value / voltage (mV) -- byte_mode + sys_num strap */
+uint32_t adc2_val_ddr_array[7];
+uint32_t adc2_val_ddr_array_sum;
+uint32_t adc2_val_ddr_array_min = 4096;
+uint32_t adc2_val_ddr_array_max;
+uint32_t adc2_val_ddr;
+uint32_t vol_val_ddr2;
 extern uint32_t  uCap_s0, uCap_s1, uCap_s2, uCap_s3;
 
 unsigned int is_emmc_init;
@@ -152,10 +177,15 @@ int load_ddr_param(int retry)
 void get_adc3(void) {
 	// read adc3 value
 	PINMUX_CONFIG(ADC3, ADC3, G3);
-	// mmio_clrbits_32(0x28104c34, 1 << 14);
-	mmio_write_32(ADC_BASE + ADC_CTL, 0x80);
-	mmio_clrsetbits_32(ADC_BASE + ADC_CYC_SET, 0xf000, 0xf << 12);
-	mmio_clrsetbits_32(ADC_BASE + ADC_CYC_SET, 0xf000, 0x2 << 12);
+	/* Clear pull-up/pull-down so the strap divider is not disturbed. */
+	mmio_clrbits_32(G3_PINMUX_REG_REG_BASE + G3_PINMUX_REG_REG_ADC3,
+			G3_PINMUX_REG_REG_ADC3_PU_EN_MASK |
+			G3_PINMUX_REG_REG_ADC3_PD_EN_MASK);
+	mmio_write_32(ADC_BASE + ADC_INTR_EN, 0x0);	/* disable saradc interrupt */
+	/* Sample clock cycle ~840 ns (matches cvitek-adc.c reference). */
+	mmio_clrsetbits_32(ADC_BASE + ADC_CYC_SET, ADC_CYC_MASK, ADC_CYC_840NS);
+	/* Select channel 3 (bit7). */
+	mmio_clrsetbits_32(ADC_BASE + ADC_CTL, 0xf0, ADC_CH3_EN);
 	mmio_setbits_32(ADC_BASE + ADC_CTL, 0x01);
 	for(int i = 0 ; i < 7 ; i++){
 		// check adc busy
@@ -169,6 +199,39 @@ void get_adc3(void) {
 	}
 	adc_val_ddr = (adc_val_ddr_array_sum - adc_val_ddr_array_min - adc_val_ddr_array_max)/5;
 	vol_val_ddr = (adc_val_ddr * 1500) / 4096;
+}
+
+void get_adc2(void)
+{
+	// read adc2 value
+	PINMUX_CONFIG(ADC2, ADC2, G3);
+	/* Clear pull-up/pull-down so the strap divider is not disturbed. */
+	mmio_clrbits_32(G3_PINMUX_REG_REG_BASE + G3_PINMUX_REG_REG_ADC2,
+			G3_PINMUX_REG_REG_ADC2_PU_EN_MASK |
+			G3_PINMUX_REG_REG_ADC2_PD_EN_MASK);
+	mmio_write_32(ADC_BASE + ADC_INTR_EN, 0x0);	/* disable saradc interrupt */
+	/* Sample clock cycle ~840 ns (matches cvitek-adc.c reference). */
+	mmio_clrsetbits_32(ADC_BASE + ADC_CYC_SET, ADC_CYC_MASK, ADC_CYC_840NS);
+	/* Select channel 2 (bit6). The old code wrote 0x80 (bit7 = ch3), which
+	 * never enabled ch2, so ADC_RESULT2 read back 0 even with a real strap.
+	 */
+	mmio_clrsetbits_32(ADC_BASE + ADC_CTL, 0xf0, ADC_CH2_EN);
+	mmio_setbits_32(ADC_BASE + ADC_CTL, 0x01);
+	for (int i = 0; i < 7; i++) {
+		// check adc busy
+		mmio_clrbits_32(ADC_BASE + ADC_CTL, 0x01);
+		mmio_setbits_32(ADC_BASE + ADC_CTL, 0x01);
+		while (mmio_read_32(ADC_BASE + ADC_BUSY_STATUS) & 0x1)
+			;
+		adc2_val_ddr_array[i] = mmio_read_32(ADC_BASE + ADC_RESULT2) & 0xfff;
+		adc2_val_ddr_array_sum += adc2_val_ddr_array[i];
+		adc2_val_ddr_array_min = (adc2_val_ddr_array_min < adc2_val_ddr_array[i] ?
+					  adc2_val_ddr_array_min : adc2_val_ddr_array[i]);
+		adc2_val_ddr_array_max = (adc2_val_ddr_array_max > adc2_val_ddr_array[i] ?
+					  adc2_val_ddr_array_max : adc2_val_ddr_array[i]);
+	}
+	adc2_val_ddr = (adc2_val_ddr_array_sum - adc2_val_ddr_array_min - adc2_val_ddr_array_max)/5;
+	vol_val_ddr2 = (adc2_val_ddr * 1500) / 4096;
 }
 
 int load_ddr(void)
@@ -206,6 +269,15 @@ retry_from_flash:
 // 	VERBOSE("\n#ddr_int_start at %d ms#\n", time_records->ddr_init_start);
 
 // 	get_adc3();
+#ifdef DDR_CFG_AUTO
+	/* Sample ADC2 (GPIO55) and ADC3 (GPIO56) board straps before DDR init so
+	 * get_board_info() can decode dram type / rank / byte_mode / sys_num.
+	 */
+	get_adc2();
+	get_adc3();
+	NOTICE("ADC strap: ADC2=%u mV (raw %u), ADC3=%u mV (raw %u)\n",
+		vol_val_ddr2, adc2_val_ddr, vol_val_ddr, adc_val_ddr);
+#endif
 
 #if 1//ndef CONFIG_BOARD_fpga
 
@@ -282,6 +354,102 @@ retry_from_flash:
 		}
 #elif defined(DDR_CFG_LPDDR5)
 		NOTICE("DDR FW: loading LPDDR5 firmware to 0x%x\n", FW_SRAM_BASE);
+
+		fw_size = fip_param2.ddr_fw_lp5_itim_size;
+		if (fw_size) {
+			fw_off = fip_param2.ddr_fw_lp5_itim_offset;
+			fw_ret = p_rom_api->load_image(fw_ptr, fw_off, fw_size, 0);
+			if (fw_ret < 0) {
+				ERROR("LP5 ITIM load failed\n");
+				return -1;
+			}
+			fw_data = (uint32_t *)fw_ptr;
+			mid = (fw_size / 8 / 2) * 2;
+			fw_crc = p_rom_api->image_crc(fw_ptr, fw_size);
+			NOTICE("LP5 ITIM: %uB dst=0x%lx off=0x%x crc=0x%x [0]=0x%08x [%u]=0x%08x [%u]=0x%08x\n",
+				fw_size, (uintptr_t)fw_ptr, fw_off, fw_crc,
+				fw_data[0], mid, fw_data[mid],
+				(fw_size/4)-2, fw_data[(fw_size/4)-2]);
+			if (fw_crc == fip_param2.ddr_fw_lp5_itim_cksum)
+				fw_ptr += fw_size;
+			else {
+				ERROR("LP5 ITIM CRC mismatch: 0x%x != 0x%x\n",
+					fw_crc, fip_param2.ddr_fw_lp5_itim_cksum);
+				return -1;
+			}
+		}
+
+		fw_size = fip_param2.ddr_fw_lp5_dtim_size;
+		if (fw_size) {
+			fw_off = fip_param2.ddr_fw_lp5_dtim_offset;
+			fw_ret = p_rom_api->load_image(fw_ptr, fw_off, fw_size, 0);
+			if (fw_ret < 0) {
+				ERROR("LP5 DTIM load failed\n");
+				return -1;
+			}
+			fw_data = (uint32_t *)fw_ptr;
+			mid = (fw_size / 8 / 2) * 2;
+			fw_crc = p_rom_api->image_crc(fw_ptr, fw_size);
+			NOTICE("LP5 DTIM: %uB dst=0x%lx off=0x%x crc=0x%x [0]=0x%08x [%u]=0x%08x [%u]=0x%08x\n",
+				fw_size, (uintptr_t)fw_ptr, fw_off, fw_crc,
+				fw_data[0], mid, fw_data[mid],
+				(fw_size/4)-2, fw_data[(fw_size/4)-2]);
+			if (fw_crc != fip_param2.ddr_fw_lp5_dtim_cksum) {
+				ERROR("LP5 DTIM CRC mismatch: 0x%x != 0x%x\n",
+					fw_crc, fip_param2.ddr_fw_lp5_dtim_cksum);
+				return -1;
+			}
+		}
+#elif defined(DDR_CFG_AUTO)
+		NOTICE("DDR FW: loading LPDDR4+LPDDR5 firmware to 0x%x\n", FW_SRAM_BASE);
+
+		fw_size = fip_param2.ddr_fw_lp4_itim_size;
+		if (fw_size) {
+			fw_off = fip_param2.ddr_fw_lp4_itim_offset;
+			fw_ret = p_rom_api->load_image(fw_ptr, fw_off, fw_size, 0);
+			if (fw_ret < 0) {
+				ERROR("LP4 ITIM load failed\n");
+				return -1;
+			}
+			fw_data = (uint32_t *)fw_ptr;
+			mid = (fw_size / 8 / 2) * 2;
+			fw_crc = p_rom_api->image_crc(fw_ptr, fw_size);
+			NOTICE("LP4 ITIM: %uB dst=0x%lx off=0x%x crc=0x%x [0]=0x%08x [%u]=0x%08x [%u]=0x%08x\n",
+				fw_size, (uintptr_t)fw_ptr, fw_off, fw_crc,
+				fw_data[0], mid, fw_data[mid],
+				(fw_size/4)-2, fw_data[(fw_size/4)-2]);
+			if (fw_crc == fip_param2.ddr_fw_lp4_itim_cksum)
+				fw_ptr += fw_size;
+			else {
+				ERROR("LP4 ITIM CRC mismatch: 0x%x != 0x%x\n",
+					fw_crc, fip_param2.ddr_fw_lp4_itim_cksum);
+				return -1;
+			}
+		}
+
+		fw_size = fip_param2.ddr_fw_lp4_dtim_size;
+		if (fw_size) {
+			fw_off = fip_param2.ddr_fw_lp4_dtim_offset;
+			fw_ret = p_rom_api->load_image(fw_ptr, fw_off, fw_size, 0);
+			if (fw_ret < 0) {
+				ERROR("LP4 DTIM load failed\n");
+				return -1;
+			}
+			fw_data = (uint32_t *)fw_ptr;
+			mid = (fw_size / 8 / 2) * 2;
+			fw_crc = p_rom_api->image_crc(fw_ptr, fw_size);
+			NOTICE("LP4 DTIM: %uB dst=0x%lx off=0x%x crc=0x%x [0]=0x%08x [%u]=0x%08x [%u]=0x%08x\n",
+				fw_size, (uintptr_t)fw_ptr, fw_off, fw_crc,
+				fw_data[0], mid, fw_data[mid],
+				(fw_size/4)-2, fw_data[(fw_size/4)-2]);
+			if (fw_crc == fip_param2.ddr_fw_lp4_dtim_cksum)
+				fw_ptr += fw_size;
+			else {
+				ERROR("LP4 DTIM CRC mismatch: 0x%x != 0x%x\n",
+					fw_crc, fip_param2.ddr_fw_lp4_dtim_cksum);
+				return -1;
+			}
+		}
 
 		fw_size = fip_param2.ddr_fw_lp5_itim_size;
 		if (fw_size) {
@@ -574,9 +742,17 @@ int load_blmcu(int retry)
 		return ret;
 	}
 
-	mmio_write_32(0x28100248, 0x1);
-	mmio_write_32(0x05025020, 0x5200080);
+	mmio_write_32(0x05025018, 0x07FFFFFD);	/* MCU reset assert */
+	mmio_write_32(0x281003B0, 0x1);
+	mmio_write_32(0x05025034, 0xFFFFFFFF);	/* clear pending irq */
+	mmio_write_32(0x050250B8, 0x0);
+	mmio_write_32(0x050250BC, 0x0);
+	mmio_write_32(0x050250C4, 0x3C);
+	mmio_write_32(0x05025020, 0x5200080);	/* MCU boot vector */
 	mmio_write_32(0x05025024, 0x5200000);
+	mmio_write_32(0x05025018, 0x07FFFFFF);	/* MCU reset de-assert */
+	mmio_write_32(0x05025030, 0xFFFFFFFE);
+	mmio_write_32(0x0502501C, 0x00001010);
 
 	time_records->blmcu_start = read_time_ms();
 	VERBOSE("\n#blmcu start at %dms#\n", time_records->blmcu_start);
@@ -875,7 +1051,7 @@ int load_rest(void)
 	// Init sys PLL and switch clocks to PLL
 	sys_pll_init();
 
-	mmio_setbits_32(PCIE_BOOT_REG, 0x3 << 16);
+	mmio_setbits_32(PCIE_BOOT_REG, DDR_INIT_DONE);
 	NOTICE("LR/0x%lx/0x%llx/src=0x%x.\n", (unsigned long)DRAM_BASE,
 	       (unsigned long long)0x800000000ULL, p_rom_api->get_boot_src());
 

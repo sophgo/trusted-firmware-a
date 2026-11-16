@@ -15,6 +15,16 @@
 //#define LPDDR5_BRINGUP_CODE_VERIFY
 //#define LPDDR4_BRINGUP_CODE_VERIFY
 
+
+
+typedef enum ddr_non_binary_die_size_e {
+	DDR_NON_BINARY_DIE_SIZE_0GB = 0,
+	DDR_NON_BINARY_DIE_SIZE_6Gb = 1,
+	DDR_NON_BINARY_DIE_SIZE_12Gb = 2,
+	DDR_NON_BINARY_DIE_SIZE_24Gb = 3,
+	DDR_NON_BINARY_DIE_SIZE_MIXED = 4,
+} ddr_non_binary_die_size_e;
+
 struct ddr_param {
 	uint8_t data[1024 * 16];
 };
@@ -40,6 +50,7 @@ typedef struct SubsysHdlr_priv {
 	uint8_t rank_num; //!< Number of ranks to setup
 	uint8_t sys_num;
 	uint8_t ctrl_num;
+	ddr_non_binary_die_size_e non_binary_die_size; //!< Non-binary die size
 	uint16_t ddr_clk;
 	uint16_t itlv_size;
 
@@ -93,5 +104,6 @@ typedef struct SubsysHdlr_priv {
 } ddr_ctx;
 
 int ddr_init(void);
+uint32_t ddr_get_total_size_mb(void);
 
 #endif /* __DDR_H__ */

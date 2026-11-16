@@ -159,6 +159,26 @@ static inline bool pcie_is_switch_mode(void)
 #endif
 }
 
+/*
+ * A controller claimed by C2C has its sub-cfg register programmed (by the
+ * ROM's pcie_chip_config_port_code for cascade mode, or by this driver for
+ * switch mode); bit[19:0] non-zero means the controller is not a plain RC.
+ * Same table and mask as U-Boot's cv84x6_pcie_fixup().
+ */
+static const uintptr_t pcie_c2c_cfg[PCIE_CTRL_MAX] = {
+	0x21790400,	/* X8_0 */
+	0x21793030,	/* X2_0 */
+	0x2179302c,	/* X4_0 */
+	0x21793034,	/* X2_1 */
+};
+
+#define PCIE_C2C_CFG_MASK	0x000fffff
+
+static bool pcie_c2c_in_use(enum pcie_ctrl_id ctrl_id)
+{
+	return (mmio_read_32(pcie_c2c_cfg[ctrl_id]) & PCIE_C2C_CFG_MASK) != 0;
+}
+
 static void pcie_config_phy_bl_bypass(enum pcie_phy_select phy_select, uint32_t bypass)
 {
 	uint32_t val =0;
@@ -861,7 +881,7 @@ static void pcie_config_rc_bus_resource(uint32_t ctrl_id)
 
 #define PCIE_LINK_STATUS_MAX 64
 
-static void pcie_wait_link_up(enum pcie_ctrl_id ctrl_id)
+static int pcie_wait_link_up(enum pcie_ctrl_id ctrl_id)
 {
 	uintptr_t sii_base = PCIE_CFG_SII(ctrl_id);
 	uintptr_t dbi_base = PCIE_DBI(ctrl_id);
@@ -870,6 +890,7 @@ static void pcie_wait_link_up(enum pcie_ctrl_id ctrl_id)
 	bool speed_change_done = true;
 	uint32_t status_log[PCIE_LINK_STATUS_MAX];
 	uint32_t log_cnt = 0;
+	int ret = -1;
 
 	while (timeout--) {
 		status = mmio_read_32(sii_base + 0xB4);
@@ -881,6 +902,7 @@ static void pcie_wait_link_up(enum pcie_ctrl_id ctrl_id)
 		}
 
 		if ((status & 0x1f) == LTSSM_STATE_S_L0) {
+			ret = 0;
 			if (status == 0x2d1 && !speed_change_done) {
 				//0x2d1: Gen3 L0, trigger directed speed change once again
 				speed_change_done = true;
@@ -901,6 +923,8 @@ static void pcie_wait_link_up(enum pcie_ctrl_id ctrl_id)
 	for (uint32_t i = 0; i < log_cnt; i++)
 		NOTICE("  [%u] 0x%x\n", i, status_log[i]);
 	console_flush();
+
+	return ret;
 }
 
 /* program one iATU outbound region: map [src_start, src_end] to target */
@@ -1013,6 +1037,31 @@ static int pci_switch_bus_scan(enum pcie_ctrl_id ctrl_id)
 	return 0;
 }
 
+static uint32_t pcie_get_chip_id(uint32_t port_code)
+{
+	if ((port_code & 0xf) == 6)
+		return 1;
+	if (((port_code >> 4) & 0xf) == 6)
+		return 2;
+	if (((port_code >> 8) & 0xf) == 6)
+		return 3;
+	if (((port_code >> 12) & 0xf) == 6)
+		return 4;
+
+	return 0;
+}
+
+static void pcie_resize_ep_bar4(void)
+{
+	uintptr_t dbi_base = PCIE_DBI(PCIE_CTRL_X8_0);
+
+	/* Resize our EP BAR4 to 0x400_0000_0000_0000. */
+	mmio_setbits_32(dbi_base + 0x8bc, 0x1); /* DBI_RO_WR_EN */
+	mmio_setbits_32(dbi_base + PCIE_DBI2_OFFSET + 0x20, 0xffffffff);
+	mmio_setbits_32(dbi_base + PCIE_DBI2_OFFSET + 0x24, 0x3ffffff);
+	mmio_clrbits_32(dbi_base + 0x8bc, 0x1);
+}
+
 static int pci_bus_scan(enum pcie_ctrl_id ctrl_id, uint32_t func_num, uint32_t board_id)
 {
 	int bus_num = pcie_bus_resources[ctrl_id].secondary;
@@ -1029,16 +1078,7 @@ static int pci_bus_scan(enum pcie_ctrl_id ctrl_id, uint32_t func_num, uint32_t b
 
 	/* non-switch mode: cascade chips rc, decode chip position from port_code */
 	uint32_t port_code = mmio_read_32(PCIE_SUB_CFG + 0x400);
-
-	if ((port_code & 0xf) == 6) {
-		chip_id = 1;
-	} else if (((port_code >> 4) & 0xf) == 6) {
-		chip_id = 2;
-	} else if (((port_code >> 8) & 0xf) == 6) {
-		chip_id = 3;
-	} else if (((port_code >> 12) & 0xf) == 6) {
-		chip_id = 4;
-	}
+	chip_id = pcie_get_chip_id(port_code);
 
 	NOTICE("port_code=0x%x, chip_id=%d\n", port_code, chip_id);
 
@@ -1059,16 +1099,8 @@ static int pci_bus_scan(enum pcie_ctrl_id ctrl_id, uint32_t func_num, uint32_t b
 		break;
 	}
 
-	if (chip_id > 1) {
-		//resize our EP bar4 to 0x400_0000_0000_0000
-		uintptr_t dbi_base = PCIE_DBI(PCIE_CTRL_X8_0);
-
-		mmio_setbits_32(dbi_base + 0x8bc, 0x1); /* DBI_RO_WR_EN */
-		mmio_setbits_32(dbi_base + PCIE_DBI2_OFFSET + 0x20, 0xffffffff);
-		mmio_setbits_32(dbi_base + PCIE_DBI2_OFFSET + 0x24, 0x3ffffff);
-		mmio_clrbits_32(dbi_base + 0x8bc, 0x1);
-	}
-
+	if (chip_id > 1)
+		pcie_resize_ep_bar4();
 
 	uint32_t board_size = port_code >> 27 & 0x7;
 	if (chip_id == board_size) {
@@ -1156,15 +1188,30 @@ static void pcie_ctrl_init(const struct pcie_ctrl_setup *setup)
 		pcie_config_bar0_iatu(ctrl_id);
 	}
 	pcie_enable_ltssm(ctrl_id);
-	pcie_wait_link_up(ctrl_id);
+
+	if (pcie_wait_link_up(ctrl_id) != 0) {
+		if (setup->is_rc && !pcie_is_switch_mode() &&
+		    pcie_c2c_in_use(ctrl_id)) {
+			uint32_t port_code = mmio_read_32(PCIE_SUB_CFG + 0x400);
+
+			if (pcie_get_chip_id(port_code) > 1)
+				pcie_resize_ep_bar4();
+		}
+		return;
+	}
 
 	/*
-	 * For RC controllers: do downstream config so the bus can be scanned.
-	 * Switch-mode port config values differ from the EP path (which uses
-	 * pcie_chip_config_port_code in the ROM).
+	 * For RC controllers used by C2C or in switch mode: do the downstream
+	 * config so the cascade bus can be scanned and its BARs/iATU windows
+	 * programmed.  Plain RC controllers are left to the kernel, which
+	 * programs the iATU CFG window and enumerates the bus itself.
 	 */
-	if (setup->is_rc) {
+	if (setup->is_rc &&
+	    (pcie_is_switch_mode() || pcie_c2c_in_use(ctrl_id))) {
 		pcie_chip_rc_downstream_config(ctrl_id, setup->func_num, setup->board_id);
+	} else if (setup->is_rc) {
+		NOTICE("PCIE ctrl%d: plain RC, downstream config left to kernel\n",
+		       ctrl_id);
 	}
 }
 
@@ -1214,11 +1261,29 @@ void pcie_init(void)
 	struct pcie_boot_config cfg = {0};
 	enum pcie_phy_select phy_init_done = 0;
 	uint32_t ctrl_id;
+	bool ctrl_enabled = false;
 
 	NOTICE("\nPCIe initialization start\n");
 
 	//if (pcie_reg_read(PCIE_BOOT_REG) & SKIP_PCIEI)
 	//	return;
+
+	/*
+	 * If every controller is disabled this firmware does not own PCIe or the
+	 * SerDes PHY at all: leave both untouched so the OS can bring them up
+	 * from their reset defaults.  In particular PCIE_HOLD_ARESETN must stay
+	 * at 0 here.
+	 */
+	for (ctrl_id = 0; ctrl_id < PCIE_CTRL_MAX; ctrl_id++) {
+		if (pcie_ctrl_modes[ctrl_id] != PCIE_CTRL_DISABLED) {
+			ctrl_enabled = true;
+			break;
+		}
+	}
+	if (!ctrl_enabled) {
+		NOTICE("PCIe: skipping init\n");
+		return;
+	}
 
 	pcie_parse_trap(&cfg);
 

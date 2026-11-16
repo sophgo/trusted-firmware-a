@@ -292,14 +292,24 @@ bmsp_args_t *cvsp_privte_otp3_read_handler(uint64_t func, uint64_t arg1,
 
 	VERBOSE("%s(): 0x%x(%u) to %p\n", __func__, addr, size, buf);
 
+#ifdef CV84X6
+	(void)segment;
+
+	inv_dcache_range((uintptr_t)buf, (size << 2));
+
+	for (i = 0; i < size; i++) {
+		buf[i] = mmio_read_32(REG_OTP_BASE + (addr + (i << 2)));
+	}
+#else
 	if (size > (32 - addr))
 		size = (32 - addr);
 
 	inv_dcache_range((uintptr_t)buf, (size << 2));
 
 	for (i = 0; i < size; i++) {
-		buf[i] = mmio_read_32(0x33050000 + (((segment << 5) + addr + i) << 2));
+		buf[i] = mmio_read_32(REG_OTP_BASE + (((segment << 5) + addr + i) << 2));
 	}
+#endif
 
 	flush_dcache_range((uintptr_t)buf, (size << 2));
 
@@ -321,16 +331,18 @@ bmsp_args_t *cvsp_privte_otp3_write_handler(uint64_t func, uint64_t arg1,
 
 	inv_dcache_range((uintptr_t)buf, (size << 2));
 
-	for (i = 0; i < size; i++) {
-		mmio_write_32(0x33050000 + (((segment << 5) + addr + i) << 2), buf[i]);
-	}
+#ifdef CV84X6
+	(void)segment;
 
-#if 0  // Don't enable it, it will let otp hang
-	// reset otp
-	mmio_clrbits_32(0x2810300c, 0x2000000);
-	mdelay(1);
-	mmio_setbits_32(0x2810300c, 0x2000000);
+	for (i = 0; i < size; i++) {
+		mmio_write_32(REG_OTP_BASE + (addr + (i << 2)), buf[i]);
+	}
+#else
+	for (i = 0; i < size; i++) {
+		mmio_write_32(REG_OTP_BASE + (((segment << 5) + addr + i) << 2), buf[i]);
+	}
 #endif
+
 	return bmsp_set_smc_args(TEESMC_OPTEED_RETURN_CALL_DONE, size, 0, 0, 0,
 				 0, 0, 0);
 }
@@ -344,28 +356,28 @@ bmsp_args_t *cvsp_privte_trng_init_handler(uint64_t func, uint64_t arg1,
 
 	// wait idle
 	do {
-		data = mmio_read_32(0x3301000C);
+		data = mmio_read_32((REG_TRNG_BASE + 0xC));
 	} while ((data & 0x80000000) == 0x80000000);
 
 	// start seed generation
-	mmio_write_32(0x33010000, 0x1);
+	mmio_write_32(REG_TRNG_BASE, 0x1);
 
 	do {
-		data = mmio_read_32(0x33010014);
+		data = mmio_read_32((REG_TRNG_BASE + 0x14));
 	} while (!(data & 0x10));
 
 	// ack and clear the done bit flag
-	mmio_write_32(0x33010014, 0x10);
+	mmio_write_32((REG_TRNG_BASE + 0x14), 0x10);
 
 	// create state;
-	mmio_write_32(0x33010000, 0x3);
+	mmio_write_32(REG_TRNG_BASE, 0x3);
 
 	do {
-		data = mmio_read_32(0x33010014);
+		data = mmio_read_32((REG_TRNG_BASE + 0x14));
 	} while (!(data & 0x10));
 
 	// ack and clear the done bit flag
-	mmio_write_32(0x33010014, 0x10);
+	mmio_write_32((REG_TRNG_BASE + 0x14), 0x10);
 
 	return bmsp_set_smc_args(TEESMC_OPTEED_RETURN_CALL_DONE, 0, 0, 0, 0,
 				 0, 0, 0);
@@ -378,19 +390,19 @@ bmsp_args_t *cvsp_privte_trng_read_handler(uint64_t func, uint64_t arg1,
 {
 	uint32_t data;
 
-	mmio_write_32(0x33010000, 0x6);
+	mmio_write_32(REG_TRNG_BASE, 0x6);
 
 	do {
-		data = mmio_read_32(0x33010014);
+		data = mmio_read_32((REG_TRNG_BASE + 0x14));
 	} while (!(data & 0x10));
 
 	// ack and clear the done bit flag
-	mmio_write_32(0x33010014, 0x10);
+	mmio_write_32((REG_TRNG_BASE + 0x14), 0x10);
 
-	uint32_t value1 = mmio_read_32(0x33010024);
-	uint32_t value2 = mmio_read_32(0x33010028);
-	uint32_t value3 = mmio_read_32(0x3301002C);
-	uint32_t value4 = mmio_read_32(0x33010030);
+	uint32_t value1 = mmio_read_32((REG_TRNG_BASE + 0x24));
+	uint32_t value2 = mmio_read_32((REG_TRNG_BASE + 0x28));
+	uint32_t value3 = mmio_read_32((REG_TRNG_BASE + 0x2C));
+	uint32_t value4 = mmio_read_32((REG_TRNG_BASE + 0x30));
 
 	return bmsp_set_smc_args(TEESMC_OPTEED_RETURN_CALL_DONE, value1, value2, value3, value4,
 				 0, 0, 0);
@@ -438,6 +450,59 @@ bmsp_args_t *cvsp_privte_sha256_handler(u64 func, u64 arg1,
 				 0, 0, 0);
 }
 
+#ifdef CV84X6
+bmsp_args_t *cvsp_privte_pwm_ctrl_handler(uint64_t func, uint64_t arg1,
+					  uint64_t arg2, uint64_t arg3,
+					  uint64_t arg4, uint64_t arg5,
+					  uint64_t arg6, uint64_t arg7)
+{
+	uint32_t op = (uint32_t)arg1;
+	uintptr_t base = (uintptr_t)arg2;
+	uint32_t offset = (uint32_t)arg3;
+	uint32_t value = (uint32_t)arg4;
+	uint32_t mask = (uint32_t)arg5;
+	uint32_t reg_value = 0;
+	uint32_t reg;
+	int ret = 0;
+
+	(void)func;
+	(void)arg6;
+	(void)arg7;
+
+	NOTICE("PWM_SMC in: op=%u base=0x%lx off=0x%x val=0x%x mask=0x%x\n",
+	       op, (unsigned long)base, offset, value, mask);
+
+	if (base != 0x27055000UL || offset >= 0x1000U || (offset & 0x3))
+		return bmsp_set_smc_args(TEESMC_OPTEED_RETURN_CALL_DONE, -EINVAL,
+					 0, 0, 0, 0, 0, 0);
+
+	reg = (uint32_t)base + offset;
+
+	switch (op) {
+	case 0:
+		reg_value = mmio_read_32(reg);
+		break;
+	case 1:
+		mmio_write_32(reg, value);
+		break;
+	case 2:
+		reg_value = mmio_read_32(reg);
+		reg_value &= ~mask;
+		reg_value |= value & mask;
+		mmio_write_32(reg, reg_value);
+		break;
+	default:
+		ret = -EINVAL;
+		break;
+	}
+
+	NOTICE("PWM_SMC out: ret=%d readback=0x%x\n", ret, reg_value);
+
+	return bmsp_set_smc_args(TEESMC_OPTEED_RETURN_CALL_DONE, ret, reg_value, 0,
+				 0, 0, 0, 0);
+}
+#endif
+
 static int cvsp_privte_smc_handler_init(void)
 {
 	static int ready;
@@ -472,7 +537,7 @@ static void cvsp_private_smc_handler_cleanup_fn(int *p)
 	p = p;
 
 	// Disable SPACC/TRNG clock at A2 platform
-	mmio_setbits_32(0x33060000, 0x3);
+	mmio_setbits_32(SEC_SYS_CTL_FOR_TOP, 0x3);
 }
 
 bmsp_args_t *cvsp_private_smc_handler(uint64_t func, uint64_t arg1,
@@ -489,7 +554,7 @@ bmsp_args_t *cvsp_private_smc_handler(uint64_t func, uint64_t arg1,
 	//        arg1);
 
 	// Enable SPACC/TRNG clock at A2 platform
-	mmio_clrbits_32(0x33060000, 0x3);
+	mmio_clrbits_32(SEC_SYS_CTL_FOR_TOP, 0x3);
 
 	ret = cvsp_privte_smc_handler_init();
 	if (ret < 0) {
@@ -574,7 +639,13 @@ bmsp_args_t *cvsp_private_smc_handler(uint64_t func, uint64_t arg1,
 
 	case OPTEE_SMC_CALL_CV_SM3:
 		return cvsp_privte_sm3_handler(func, arg1, arg2, arg3,
-						       arg4, arg5, arg6, arg7);
+					       arg4, arg5, arg6, arg7);
+
+#ifdef CV84X6
+	case OPTEE_SMC_CALL_CV_PWM_CTRL:
+		return cvsp_privte_pwm_ctrl_handler(func, arg1, arg2, arg3,
+						    arg4, arg5, arg6, arg7);
+#endif
 	default:
 		ERROR("Unknown func id (0x%lx)\n", func);
 		break;
