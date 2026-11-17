@@ -69,7 +69,7 @@ extern uint32_t ddr_ctl_offset;
 extern uint32_t ddr_bist_offset;
 
 /********************DDR Feature List***********************/
-#define SG_MDF
+//#define SG_MDF
 /*ddr common feature define*/
 //#define DDR_EXT_LOOP_BACK_TEST
 //#define DBG_BRING_UP

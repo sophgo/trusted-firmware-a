@@ -477,6 +477,13 @@ static void __dead2 bm_system_off(void)
 
 static void __dead2 bm_system_reset(void)
 {
+	/* OEM PRODUCT at RTC SRAM (0x5207F00) offset 0xD0: check for "SE13V1" */
+	bool is_se13 = (mmio_read_8(0x5207FD0) == 'S' &&
+			mmio_read_8(0x5207FD1) == 'E' &&
+			mmio_read_8(0x5207FD2) == '1' &&
+			mmio_read_8(0x5207FD3) == '3' &&
+			mmio_read_8(0x5207FD4) == 'V' &&
+			mmio_read_8(0x5207FD5) == '1');
 
 	mmio_write_32(REG_RTC_BASE + RTC_EN_PWR_CYC_REQ, 0x01);
 	while (mmio_read_32(REG_RTC_BASE + RTC_EN_PWR_CYC_REQ) != 0x01)
@@ -485,6 +492,14 @@ static void __dead2 bm_system_reset(void)
 	mmio_write_32(0x050250ac, 0x1);
 	while (mmio_read_32(0x050250ac) != 0x1)
 		;
+
+	if (is_se13) {
+		mmio_write_32(REG_RTC_BASE + RTC_EN_PWR_VBAT_DET, 0x7);
+		mmio_clrsetbits_32(0x05027804, 0xF0, (0x3 << 4)); // PWR_ON PIN_SEL_EN = PWR_GPIO8
+		mmio_setbits_32(0x05021004, (0x1 << 8));            // gpio8 DDR bit8 = output
+		mmio_clrbits_32(0x05021000, (0x1 << 8));            // gpio8 DR  bit8 = 0
+		NOTICE("drive PWR_ON low via GPIO push-pull...\n");
+	}
 
 	mmio_write_32(REG_RTC_CTRL_BASE + RTC_CTRL0_UNLOCKKEY, 0xAB18);
 	mmio_setbits_32(REG_RTC_CTRL_BASE + RTC_CTRL0, 0xFFFF0800 | (0x1 << 3));
