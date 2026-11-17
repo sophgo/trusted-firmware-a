@@ -742,17 +742,9 @@ int load_blmcu(int retry)
 		return ret;
 	}
 
-	mmio_write_32(0x05025018, 0x07FFFFFD);	/* MCU reset assert */
-	mmio_write_32(0x281003B0, 0x1);
-	mmio_write_32(0x05025034, 0xFFFFFFFF);	/* clear pending irq */
-	mmio_write_32(0x050250B8, 0x0);
-	mmio_write_32(0x050250BC, 0x0);
-	mmio_write_32(0x050250C4, 0x3C);
-	mmio_write_32(0x05025020, 0x5200080);	/* MCU boot vector */
+	mmio_write_32(0x28100248, 0x1);
+	mmio_write_32(0x05025020, 0x5200080);
 	mmio_write_32(0x05025024, 0x5200000);
-	mmio_write_32(0x05025018, 0x07FFFFFF);	/* MCU reset de-assert */
-	mmio_write_32(0x05025030, 0xFFFFFFFE);
-	mmio_write_32(0x0502501C, 0x00001010);
 
 	time_records->blmcu_start = read_time_ms();
 	VERBOSE("\n#blmcu start at %dms#\n", time_records->blmcu_start);
